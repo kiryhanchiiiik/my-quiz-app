@@ -1,0 +1,29 @@
+.multiple {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+.label {
+  background-color: #646cff;
+  border: 3px #ffffff solid;
+  border-radius: 10px;
+  padding: 15px;
+}
+.validationMessage {
+  color: red;
+}
+
+.textarea {
+  background-color: #646cff;
+  border: 3px #ffffff solid;
+  border-radius: 10px;
+  padding: 15px;
+  width: 300px;
+  margin-bottom: 20px;
+  resize: none;
+}
+
+.textarea::placeholder {
+  color: #ffffff;
+}

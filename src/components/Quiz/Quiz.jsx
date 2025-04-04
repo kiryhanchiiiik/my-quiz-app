@@ -1,94 +1,54 @@
-import { useState, useEffect } from "react";
-import { axiosInstance } from "../../api/axiosInstance";
-import { config } from "../../config";
+import { useState } from "react";
+import { useQuizData } from "../../hooks/useQuizData";
 import ProgressBar from "../ProgressBar/ProgressBar";
+import QuestionBlock from "../QuestionBlock/QuestionBlock";
 import css from "./Quiz.module.css";
-import Loader from "../Loader/Loader";
+import LoaderScreen from "../LoaderScreen/LoaderScreen";
 
 const Quiz = () => {
-  const [steps, setSteps] = useState([]);
-  const [questionsByStep, setQuestionsByStep] = useState([]);
-  const [userAnswers, setUserAnswers] = useState({});
-  const [loading, setLoading] = useState(true);
+  const { steps, questionsByStep, loading } = useQuizData();
+  const [userAnswers, setUserAnswers] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [showResultOnly, setShowResultOnly] = useState(false);
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
 
-  const fetchQuizData = async () => {
-    try {
-      const url = `spaces/${config.spaceId}/environments/${config.environment}/entries?content_type=step&access_token=${config.accessToken}`;
-      const response = await axiosInstance.get(url);
-      setSteps(response.data.items);
-    } catch (error) {
-      console.error("Error fetching quiz data:", error);
-    }
-  };
+  const currentStepData = steps[currentStep];
+  const currentQuestion = questionsByStep[currentStepData?.sys.id];
 
-  const fetchQuestions = async (questionId) => {
-    try {
-      const url = `spaces/${config.spaceId}/environments/${config.environment}/entries/${questionId}?access_token=${config.accessToken}`;
-      const response = await axiosInstance.get(url);
-      return response.data.fields;
-    } catch (error) {
-      console.error("Error fetching question data:", error);
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    fetchQuizData();
-  }, []);
-
-  useEffect(() => {
-    if (steps.length > 0) {
-      const loadQuestions = async () => {
-        const questionsData = {};
-
-        for (const step of steps) {
-          const questionId = step.fields.questions.sys.id;
-          const questionData = await fetchQuestions(questionId);
-          if (questionData) {
-            questionsData[step.sys.id] = questionData;
-          }
-        }
-
-        setQuestionsByStep(questionsData);
-        setLoading(false);
-      };
-
-      loadQuestions();
-    }
-  }, [steps]);
-
-  const goToNextStep = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const goToPreviousStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
+  const isStepValid = () => {
+    return Boolean(userAnswers[currentStepData?.sys.id]);
   };
 
   const handleAnswerChange = (stepId, answer) => {
-    setUserAnswers((prev) => ({
-      ...prev,
-      [stepId]: answer,
-    }));
+    setUserAnswers((prev) => ({ ...prev, [stepId]: answer }));
+    setShowValidationMessage(false);
+  };
+
+  const goToNextStep = () => {
+    if (!isStepValid()) {
+      setShowValidationMessage(true);
+      return;
+    }
+    setCurrentStep((prev) => prev + 1);
+  };
+
+  const goToPreviousStep = () => {
+    setShowValidationMessage(false);
+    if (currentStep > 0) setCurrentStep((prev) => prev - 1);
   };
 
   const calculateResults = () => {
-    let correctCount = 0;
+    if (!isStepValid()) {
+      setShowValidationMessage(true);
+      return;
+    }
 
+    let correctCount = 0;
     steps.forEach((step) => {
       const question = questionsByStep[step.sys.id];
-      const correctAnswer = question.correctAnswer;
-      const userAnswer = userAnswers[step.sys.id];
-
-      if (userAnswer === correctAnswer) {
+      if (userAnswers[step.sys.id] === question.correctAnswer) {
         correctCount++;
       }
     });
@@ -104,80 +64,47 @@ const Quiz = () => {
     setUserAnswers({});
     setCurrentStep(0);
     setShowResultOnly(false);
+    setShowValidationMessage(false);
   };
 
-  const currentStepData = steps[currentStep];
-  const currentQuestions = questionsByStep[currentStepData?.sys.id];
-
-  if (loading) {
-    return <Loader />;
-  }
+  if (loading) return <LoaderScreen />;
 
   return (
     <div>
       <h1>Quiz</h1>
+
       {!quizFinished && (
         <ProgressBar currentStep={currentStep} totalSteps={steps.length} />
       )}
 
-      {quizFinished && showResultOnly && (
+      {quizFinished && showResultOnly ? (
         <div>
           <h2>
-            You're result: {correctAnswersCount}/{steps.length}
+            Your result: {correctAnswersCount}/{steps.length}
           </h2>
-          <button onClick={restartQuiz}>Try again</button>{" "}
+          <button onClick={restartQuiz}>Try again</button>
         </div>
-      )}
+      ) : (
+        <>
+          <QuestionBlock
+            question={currentQuestion}
+            stepId={currentStepData?.sys.id}
+            selectedAnswer={userAnswers[currentStepData?.sys.id]}
+            onChange={handleAnswerChange}
+            showValidation={showValidationMessage}
+          />
 
-      {!showResultOnly && (
-        <div>
-          {currentQuestions && (
-            <div className="question-container">
-              <h3>{currentQuestions.questionText}</h3>
-              {currentQuestions.questionType === "multiple choice" ? (
-                <div className={css.multiple}>
-                  {currentQuestions.answers.split(",").map((answer, index) => (
-                    <label className={css.label} key={index}>
-                      <input
-                        type="radio"
-                        name={`question-${currentStep}`}
-                        value={answer}
-                        checked={
-                          userAnswers[currentStepData.sys.id] === answer.trim()
-                        }
-                        onChange={() =>
-                          handleAnswerChange(
-                            currentStepData.sys.id,
-                            answer.trim()
-                          )
-                        }
-                      />
-                      {answer.trim()}
-                    </label>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!showResultOnly && (
-        <div className={css.buttons}>
-          <button onClick={goToPreviousStep} disabled={currentStep === 0}>
-            Previous
-          </button>
-          {currentStep === steps.length - 1 ? (
-            <button onClick={calculateResults}>Submit</button>
-          ) : (
-            <button
-              onClick={goToNextStep}
-              disabled={currentStep === steps.length - 1}
-            >
-              Next
+          <div className={css.buttons}>
+            <button onClick={goToPreviousStep} disabled={currentStep === 0}>
+              Previous
             </button>
-          )}
-        </div>
+            {currentStep === steps.length - 1 ? (
+              <button onClick={calculateResults}>Submit</button>
+            ) : (
+              <button onClick={goToNextStep}>Next</button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 export const config = {
-  spaceId: "tpyc3y51rukv",
-  accessToken: "evXc3QfHP4jTRklLjmqJR5N46jZ-ohtoLDXgBNSJ6cw",
-  environment: "master",
+  spaceId: import.meta.env.VITE_SPACE_ID,
+  accessToken: import.meta.env.VITE_ACCESS_TOKEN,
+  environment: import.meta.env.VITE_ENVIRONMENT,
 };
